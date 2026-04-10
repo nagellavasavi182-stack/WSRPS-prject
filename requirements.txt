@@ -1,5 +1,5 @@
-Streamlit → Creates your web app UI
-Pandas → Handles dataset
-Scikit-learn → ML model (prediction)
-Twilio → SMS alerts
-OpenAI API → Chatbot (optional upgrade)
+Streamlit 
+Pandas 
+Scikit-learn 
+Twilio 
+OpenAI 
