@@ -1,53 +1,59 @@
-# 🚨 Women Safety Risk Prediction System
+# 🚨 Women Safety AI System
 
 ## 📌 Overview
 
-This project is an AI-based web application that predicts safety risk for women using machine learning. It analyzes real-time factors like location, time, environment, and user conditions to provide safety alerts.
+* Smart web app to predict safety risk
+* Built using Python and Streamlit
 
----
+## 🎯 Objectives
 
-## 🚀 Features
+* Predict risk using ML
+* Provide emergency support
+* Improve safety awareness
 
-* 🔐 User Login System
-* 🤖 ML Risk Prediction
-* 📍 Auto Location Detection
-* 🗺️ Live Map with Danger Zones
-* 🔥 Heatmap Visualization
-* 🌗 Time-Based Risk Analysis
-* 📊 Dashboard (History Tracking)
-* 🤖 AI Safety Chatbot
-* 🚨 Emergency Alert System
+## 🛠️ Technologies
 
----
-
-## 🛠️ Technologies Used
-
-* Python
 * Streamlit
-* Pandas, NumPy
+* Pandas
 * Scikit-learn
-* Folium (Maps)
+* Twilio
+* OpenAI API
 
----
+## ⚙️ Features
 
-## ▶️ How to Run
+* 🔐 Login & Signup
+* 📊 Risk Prediction
+* 📍 Location (Map)
+* 🚨 SMS Alert
+* 🧠 Chatbot
+* 📜 History
+
+## 🧠 ML Inputs
+
+* Time (Day/Night)
+* Location (Safe/Isolated)
+* Crowd (Crowded/Empty)
+* Lighting (Good/Poor)
+
+## ▶️ Run Project
 
 ```bash
-py -m pip install -r requirements.txt
-py -m streamlit run app.py
+python -m pip install -r requirements.txt
+streamlit run WSRPS.py
 ```
 
----
+## 🚨 Emergency Numbers
 
-## 📊 Dataset
+* 100 – Police
+* 1091 – Women Helpline
+* 108 – Ambulance
 
-The system uses a custom dataset including:
-time, location, weather, crowd, CCTV, network, and user status.
+## 🔮 Future Scope
 
----
+* GPS tracking
+* Advanced AI chatbot
+* Mobile app
 
-## 🎯 Conclusion
+## 👩‍💻 Author
 
-This system helps improve women safety by providing real-time risk prediction and alerts using AI and location-based analysis.
-
----
+* Academic Project

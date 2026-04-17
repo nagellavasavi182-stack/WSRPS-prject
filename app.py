@@ -1,148 +1,171 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import os
 import datetime
-import folium
-from streamlit_folium import st_folium
-from folium.plugins import HeatMap
-import joblib
-from sklearn.linear_model import LogisticRegression
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 
-# ---------------- UI ----------------
-st.set_page_config(page_title="Women Safety risk pridiction ", layout="centered")
+# (Optional APIs)
+#from twilio.rest import Client
+#import openai
 
-st.markdown("""
-<style>
-.title {
-    font-size:30px;
-    font-weight:bold;
-    color:#ff4b4b;
-    text-align:center;
-}
-</style>
-""", unsafe_allow_html=True)
+# ------------------ PAGE CONFIG ------------------
+st.set_page_config(page_title="Women Safety AI System")
 
-st.markdown('<p class="title">🚨 Women Safety risk pridiction' \
-' System</p>', unsafe_allow_html=True)
+# ------------------ SESSION ------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "users" not in st.session_state:
+    st.session_state.users = {}
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-# ---------------- MODEL ----------------
-if not os.path.exists("model.pkl"):
+# ------------------ AUTH ------------------
+def login():
+    st.subheader("Login")
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if u in st.session_state.users and st.session_state.users[u] == p:
+            st.session_state.logged_in = True
+            st.success("Login Success")
+        else:
+            st.error("Invalid")
+
+def signup():
+    st.subheader("Sign Up")
+    u = st.text_input("New Username")
+    p = st.text_input("New Password", type="password")
+    if st.button("Create Account"):
+        st.session_state.users[u] = p
+        st.success("Account Created")
+
+# ------------------ ML MODEL ------------------
+def train_model():
+    # Simple dataset
     data = pd.DataFrame({
-        "time":[22,14,20,10,23],
-        "area_type":[1,1,0,1,0],
-        "past_incidents":[8,2,7,1,9],
-        "police_distance":[3,1,5,1,6],
-        "day_type":[1,0,1,0,1],
-        "weather":[1,0,2,0,1],
-        "crowd_density":[0,2,0,2,0],
-        "cctv_presence":[0,1,0,1,0],
-        "lighting":[2,8,3,9,1],
-        "network_signal":[0,1,0,1,0],
-        "user_alone":[1,0,1,0,1],
-        "risk":[1,0,1,0,1]
+        "time": [0,1,1,0,1,0],
+        "location": [0,1,1,0,1,0],
+        "crowd": [0,1,0,1,1,0],
+        "lighting": [0,1,1,0,1,0],
+        "risk": [0,2,2,0,2,0]
     })
 
-    X = data.drop("risk", axis=1)
+    X = data[["time","location","crowd","lighting"]]
     y = data["risk"]
 
-    model = LogisticRegression()
-    model.fit(X, y)
+    model = RandomForestClassifier()
+    model.fit(X,y)
+    return model
 
-    joblib.dump(model, "model.pkl")
+model = train_model()
 
-model = joblib.load("model.pkl")
+# ------------------ SMS ALERT ------------------
+def send_sms():
+    # Twilio setup (replace with your keys)
+    """
+    client = Client("ACCOUNT_SID", "AUTH_TOKEN")
+    message = client.messages.create(
+        body="Emergency! Need help!",
+        from_="+1234567890",
+        to="+91XXXXXXXXXX"
+    )
+    """
+    st.success("SMS Sent (Demo)")
 
-# ---------------- LOGIN ----------------
-st.subheader("🔐 Login")
+# ------------------ CHATBOT ------------------
+def chatbot_response(user_input):
+    user_input = user_input.lower()
 
-username = st.text_input("Username")
-password = st.text_input("Password", type="password")
+    if "safe" in user_input:
+        return "Stay in well-lit and crowded areas."
+    elif "help" in user_input:
+        return "Call 1091 or 100 immediately."
+    else:
+        return "Stay alert and share your location."
 
-if username == "user1" and password == "abc123":
+# ------------------ MAIN APP ------------------
+def main_app():
+    menu = ["Home","Predict","Map","Emergency","Chatbot","History"]
+    choice = st.sidebar.selectbox("Menu", menu)
 
-    st.success("Login Successful ✅")
+    # HOME
+    if choice == "Home":
+        st.title("🚨 Women Safety AI System")
+        st.write("Smart Safety Prediction System")
 
-    # ---------------- LOCATION ----------------
-    lat, lon = 17.385, 78.486
-    st.write(f"📍 Location: {lat}, {lon}")
+    # ML PREDICTION
+    elif choice == "Predict":
+        st.subheader("ML Risk Prediction")
 
-    hour = datetime.datetime.now().hour
+        time = st.selectbox("Time", ["Day","Night"])
+        location = st.selectbox("Location", ["Safe","Isolated"])
+        crowd = st.selectbox("Crowd", ["Crowded","Empty"])
+        lighting = st.selectbox("Lighting", ["Good","Poor"])
 
-    # ---------------- INPUT ----------------
-    weather_opt = st.selectbox("Weather", ["clear","rainy","fog"])
-    crowd_opt = st.selectbox("Crowd", ["low","medium","high"])
+        # Convert to numbers
+        t = 1 if time=="Night" else 0
+        l = 1 if location=="Isolated" else 0
+        c = 1 if crowd=="Empty" else 0
+        li = 1 if lighting=="Poor" else 0
 
-    weather = {"clear":0,"rainy":1,"fog":2}[weather_opt]
-    crowd = {"low":0,"medium":1,"high":2}[crowd_opt]
+        if st.button("Predict"):
+            pred = model.predict([[t,l,c,li]])[0]
 
-    # ---------------- MAP ----------------
-    st.subheader("🗺️ Live Map")
+            if pred == 0:
+                result = "SAFE"
+                st.success(result)
+            elif pred == 1:
+                result = "MODERATE"
+                st.warning(result)
+            else:
+                result = "HIGH RISK"
+                st.error(result)
 
-    m = folium.Map(location=[lat, lon], zoom_start=15)
-    folium.Marker([lat, lon], tooltip="You").add_to(m)
+            st.session_state.history.append((datetime.datetime.now(), result))
 
-    danger = [[lat+0.002, lon], [lat, lon+0.002]]
+    # GOOGLE MAP
+    elif choice == "Map":
+        st.subheader("📍 Your Location")
 
-    for d in danger:
-        folium.Circle(location=d, radius=300, color="red", fill=True).add_to(m)
+        location = st.text_input("Enter location name")
+        if location:
+            st.map()  # basic map (can upgrade with API)
 
-    HeatMap(danger).add_to(m)
+    # EMERGENCY
+    elif choice == "Emergency":
+        st.subheader("🚨 Emergency")
 
-    st_folium(m)
+        st.write("Police: 100")
+        st.write("Women Helpline: 1091")
 
-    # ---------------- PREDICT ----------------
-    if st.button("🔍 Predict Risk"):
+        if st.button("Send SMS Alert"):
+            send_sms()
 
-        input_data = np.array([[hour,1,5,2,1,weather,crowd,1,5,1,1]])
+    # CHATBOT
+    elif choice == "Chatbot":
+        st.subheader("🧠 Safety Chatbot")
 
-        prob = model.predict_proba(input_data)[0][1]
+        user_msg = st.text_input("Ask something")
+        if st.button("Send"):
+            reply = chatbot_response(user_msg)
+            st.write("Bot:", reply)
 
-        st.subheader("📊 Risk Analysis")
-        st.metric("Risk %", f"{prob*100:.2f}")
+    # HISTORY
+    elif choice == "History":
+        st.subheader("History")
 
-        if prob > 0.75:
-            st.error("🚨 HIGH RISK AREA")
-            risk_level = "High"
-        elif prob > 0.4:
-            st.warning("⚠️ MEDIUM RISK")
-            risk_level = "Medium"
-        else:
-            st.success("🟢 SAFE AREA")
-            risk_level = "Low"
+        for h in st.session_state.history:
+            st.write(h)
 
-    # ---------------- CHATBOT ----------------
-    st.subheader("🤖 AI Safety Chatbot")
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
 
-    user_q = st.text_input("Ask Safety Assistant")
 
-    if user_q:
-
-        q = user_q.lower()
-
-        if "help" in q or "emergency" in q:
-            st.error("🚨 Call 100 immediately or contact nearby police station.")
-        elif "safe" in q:
-            st.info("Always avoid isolated places at night and share location with family.")
-        elif "night" in q:
-            st.warning("🌙 Night time is high risk. Stay in well-lit areas.")
-        elif "danger" in q:
-            st.warning("⚠️ Avoid red zones shown in map.")
-        else:
-            st.success("I am your safety assistant. Ask about safety, emergency, or risk.")
-
-    # ---------------- HISTORY ----------------
-    if st.button("Save Record"):
-
-        new = pd.DataFrame([[username,hour,lat,lon,prob]],
-                           columns=["user","time","lat","lon","risk"])
-
-        if os.path.exists("history.csv"):
-            new.to_csv("history.csv", mode='a', header=False, index=False)
-        else:
-            new.to_csv("history.csv", index=False)
-
-        st.success("Saved ✅")
-
+# ------------------ FLOW ------------------
+if not st.session_state.logged_in:
+    opt = st.sidebar.selectbox("Menu", ["Login","Sign Up"])
+    if opt == "Login":
+        login()
+    else:
+        signup()
 else:
-    st.warning("Login: user1 / abc123")
+    main_app()
