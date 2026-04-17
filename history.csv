@@ -1,0 +1,6 @@
+user,time,lat,lon,area_type,weather,crowd,cctv,network,alone,risk,result
+user1,22,17.385,78.486,urban,rainy,low,no,weak,yes,0.82,high
+user1,14,17.390,78.480,urban,clear,medium,yes,strong,no,0.35,low
+user1,20,17.370,78.470,rural,fog,high,no,weak,yes,0.65,medium
+user2,23,17.400,78.490,urban,rainy,low,no,weak,yes,0.90,high
+user2,10,17.360,78.460,rural,clear,high,yes,strong,no,0.25,low
