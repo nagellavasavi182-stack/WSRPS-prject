@@ -1,19 +1,69 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
+import os
+import datetime
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap
-import datetime
-import geocoder
+
+# ------------------ SAFE IMPORTS ------------------
+try:
+    import joblib
+except:
+    import subprocess
+    subprocess.run(["pip", "install", "joblib"])
+    import joblib
+
+try:
+    import geocoder
+except:
+    import subprocess
+    subprocess.run(["pip", "install", "geocoder"])
+    import geocoder
+
+# ------------------ AUTO MODEL CREATE ------------------
+from sklearn.linear_model import LogisticRegression
+
+if not os.path.exists("model.pkl"):
+    data = pd.DataFrame({
+        "time":[22,14,20,10,23],
+        "area_type":[1,1,0,1,0],
+        "past_incidents":[8,2,7,1,9],
+        "police_distance":[3,1,5,1,6],
+        "day_type":[1,0,1,0,1],
+        "weather":[1,0,2,0,1],
+        "crowd_density":[0,2,0,2,0],
+        "cctv_presence":[0,1,0,1,0],
+        "lighting":[2,8,3,9,1],
+        "network_signal":[0,1,0,1,0],
+        "user_alone":[1,0,1,0,1],
+        "risk":[1,0,1,0,1]
+    })
+
+    X = data.drop("risk", axis=1)
+    y = data["risk"]
+
+    model_temp = LogisticRegression()
+    model_temp.fit(X, y)
+
+    joblib.dump(model_temp, "model.pkl")
 
 # ------------------ LOAD MODEL ------------------
 model = joblib.load("model.pkl")
 
+# ------------------ CREATE CSV ------------------
+if not os.path.exists("history.csv"):
+    df = pd.DataFrame(columns=[
+        "user","time","lat","lon","area_type",
+        "weather","crowd","cctv","network","alone",
+        "risk","result"
+    ])
+    df.to_csv("history.csv", index=False)
+
 # ------------------ UI ------------------
 st.title("🚨 Women Safety AI System")
-st.markdown("### 🔐 Smart Risk Prediction + Live Tracking")
+st.markdown("### Smart Risk Prediction + Live Tracking")
 st.markdown("---")
 
 # ------------------ LOGIN ------------------
@@ -22,121 +72,91 @@ password = st.text_input("Password", type="password")
 
 if username == "user1" and password == "abc123":
 
-    st.success(f"Welcome {username} 👋")
+    st.success(f"Welcome {username}")
 
-    # ------------------ AUTO LOCATION ------------------
+    # ------------------ LOCATION ------------------
     g = geocoder.ip('me')
-    lat, lon = g.latlng
+    if g.latlng:
+        lat, lon = g.latlng
+    else:
+        lat, lon = 17.385, 78.486  # fallback
 
-    st.success(f"📍 Your Location: {lat}, {lon}")
+    st.write(f"📍 Location: {lat}, {lon}")
 
-    # ------------------ TIME BASED RISK ------------------
+    # ------------------ TIME ------------------
     hour = datetime.datetime.now().hour
 
     if hour >= 20 or hour <= 5:
-        st.warning("🌙 Night Time: Risk Increased")
-        time_risk = 1
+        st.warning("🌙 Night Risk High")
     else:
-        st.success("☀️ Day Time: Safer")
-        time_risk = 0
+        st.success("☀️ Day Safer")
 
-    # ------------------ AREA TYPE ------------------
-    area_type = 1 if lat > 17 else 0
-    st.write(f"📍 Area Type: {'Urban' if area_type==1 else 'Rural'}")
+    # ------------------ INPUT ------------------
+    weather_opt = st.selectbox("Weather", ["clear","rainy","fog"])
+    crowd_opt = st.selectbox("Crowd", ["low","medium","high"])
+    cctv_opt = st.selectbox("CCTV", ["yes","no"])
+    network_opt = st.selectbox("Network", ["strong","weak"])
+    alone_opt = st.selectbox("Alone", ["yes","no"])
 
-    # ------------------ INPUTS ------------------
-    weather = st.selectbox("Weather", ["clear", "rainy", "fog"])
-    crowd = st.selectbox("Crowd", ["low", "medium", "high"])
-    cctv = st.selectbox("CCTV", ["yes", "no"])
-    network = st.selectbox("Network", ["strong", "weak"])
-    alone = st.selectbox("Alone?", ["yes", "no"])
+    # Encode
+    weather = {"clear":0,"rainy":1,"fog":2}[weather_opt]
+    crowd = {"low":0,"medium":1,"high":2}[crowd_opt]
+    cctv = 1 if cctv_opt=="yes" else 0
+    network = 1 if network_opt=="strong" else 0
+    alone = 1 if alone_opt=="yes" else 0
 
-    # Encoding
-    weather = {"clear":0,"rainy":1,"fog":2}[weather]
-    crowd = {"low":0,"medium":1,"high":2}[crowd]
-    cctv = 1 if cctv=="yes" else 0
-    network = 1 if network=="strong" else 0
-    alone = 1 if alone=="yes" else 0
+    area_type = 1
 
     # ------------------ MAP ------------------
-    st.subheader("🗺️ Live Safety Map")
+    st.subheader("🗺️ Map")
 
     m = folium.Map(location=[lat, lon], zoom_start=15)
+    folium.Marker([lat, lon], tooltip="You").add_to(m)
 
-    # User marker
-    folium.Marker([lat, lon], tooltip="You are here", icon=folium.Icon(color='blue')).add_to(m)
+    danger = [[lat+0.002,lon],[lat,lon+0.002]]
 
-    # ------------------ DANGER ZONES ------------------
-    danger_zones = [
-        [lat+0.002, lon+0.002],
-        [lat-0.003, lon+0.001],
-        [lat+0.001, lon-0.002]
-    ]
+    for d in danger:
+        folium.Circle(location=d, radius=300, color="red", fill=True).add_to(m)
 
-    for d in danger_zones:
-        folium.Circle(location=d, radius=300, color='red', fill=True).add_to(m)
-
-    # Heatmap
-    HeatMap(danger_zones).add_to(m)
+    HeatMap(danger).add_to(m)
 
     st_folium(m)
 
-    # ------------------ RISK PREDICTION ------------------
-    if st.button("Predict Risk"):
+    # ------------------ PREDICT ------------------
+    if st.button("Predict"):
 
-        input_data = np.array([[hour, area_type, 5, 2, 1, weather, crowd, cctv, 5, network, alone]])
+        input_data = np.array([[hour,area_type,5,2,1,weather,crowd,cctv,5,network,alone]])
 
-        pred = model.predict(input_data)
         prob = model.predict_proba(input_data)[0][1]
 
-        st.write(f"Risk Probability: {prob*100:.2f}%")
+        st.write(f"Risk: {prob*100:.2f}%")
 
-        # ------------------ RISK LEVEL ------------------
         if prob > 0.75:
-            st.error("🔴 HIGH RISK AREA")
-
-            # 🚨 EMERGENCY NOTIFICATION
-            st.error(f"🚨 ALERT SENT TO {username.upper()}!")
-            st.warning("📍 Share your location immediately with trusted contacts!")
-
+            result = "high"
+            st.error("🚨 HIGH RISK ALERT!")
         elif prob > 0.4:
-            st.warning("🟡 MEDIUM RISK")
-
+            result = "medium"
+            st.warning("⚠️ Medium Risk")
         else:
-            st.success("🟢 SAFE AREA")
+            result = "low"
+            st.success("Safe")
 
-        # ------------------ SAVE HISTORY ------------------
-        df = pd.DataFrame([[hour, prob]], columns=["time","risk"])
-        df.to_csv("history.csv", mode='a', header=False, index=False)
+        # SAVE CSV
+        new = pd.DataFrame([[username,hour,lat,lon,"urban",
+                             weather_opt,crowd_opt,cctv_opt,
+                             network_opt,alone_opt,prob,result]],
+            columns=["user","time","lat","lon","area_type",
+                     "weather","crowd","cctv","network","alone",
+                     "risk","result"])
 
-    # ------------------ CHATBOT ------------------
-    st.subheader("🤖 AI Safety Assistant")
-
-    q = st.text_input("Ask something...")
-
-    if q:
-        if "danger" in q:
-            st.write("⚠️ Avoid nearby red zones.")
-        elif "night" in q:
-            st.write("🌙 Stay in well-lit areas.")
-        elif "help" in q:
-            st.write("🚨 Call 100 immediately!")
-        else:
-            st.write("🤖 Stay alert and share your location.")
+        new.to_csv("history.csv",mode='a',header=False,index=False)
 
     # ------------------ DASHBOARD ------------------
-    st.subheader("📊 Risk Dashboard")
+    st.subheader("📊 Dashboard")
 
-    try:
-        hist = pd.read_csv("history.csv")
-        st.line_chart(hist["risk"])
-    except:
-        st.write("No history yet")
-
-    # ------------------ EMERGENCY BUTTON ------------------
-    if st.button("🚨 Emergency Help"):
-        st.error("Emergency Alert Sent!")
-        st.write(f"📍 Location: {lat}, {lon}")
+    hist = pd.read_csv("history.csv")
+    st.dataframe(hist)
+    st.line_chart(hist["risk"])
 
 else:
-    st.warning("Please login with correct credentials")
+    st.warning("Login using user1 / abc123")
