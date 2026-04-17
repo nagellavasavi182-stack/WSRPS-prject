@@ -5,6 +5,3 @@ scikit-learn
 joblib
 folium
 streamlit-folium
-matplotlib
-geopy
-geocoder

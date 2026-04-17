@@ -6,25 +6,27 @@ import datetime
 import folium
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap
-
-# ------------------ SAFE IMPORTS ------------------
-try:
-    import joblib
-except:
-    import subprocess
-    subprocess.run(["pip", "install", "joblib"])
-    import joblib
-
-try:
-    import geocoder
-except:
-    import subprocess
-    subprocess.run(["pip", "install", "geocoder"])
-    import geocoder
-
-# ------------------ AUTO MODEL CREATE ------------------
+import joblib
 from sklearn.linear_model import LogisticRegression
 
+# ---------------- UI ----------------
+st.set_page_config(page_title="Women Safety risk pridiction ", layout="centered")
+
+st.markdown("""
+<style>
+.title {
+    font-size:30px;
+    font-weight:bold;
+    color:#ff4b4b;
+    text-align:center;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<p class="title">🚨 Women Safety risk pridiction' \
+' System</p>', unsafe_allow_html=True)
+
+# ---------------- MODEL ----------------
 if not os.path.exists("model.pkl"):
     data = pd.DataFrame({
         "time":[22,14,20,10,23],
@@ -44,76 +46,43 @@ if not os.path.exists("model.pkl"):
     X = data.drop("risk", axis=1)
     y = data["risk"]
 
-    model_temp = LogisticRegression()
-    model_temp.fit(X, y)
+    model = LogisticRegression()
+    model.fit(X, y)
 
-    joblib.dump(model_temp, "model.pkl")
+    joblib.dump(model, "model.pkl")
 
-# ------------------ LOAD MODEL ------------------
 model = joblib.load("model.pkl")
 
-# ------------------ CREATE CSV ------------------
-if not os.path.exists("history.csv"):
-    df = pd.DataFrame(columns=[
-        "user","time","lat","lon","area_type",
-        "weather","crowd","cctv","network","alone",
-        "risk","result"
-    ])
-    df.to_csv("history.csv", index=False)
+# ---------------- LOGIN ----------------
+st.subheader("🔐 Login")
 
-# ------------------ UI ------------------
-st.title("🚨 Women Safety AI System")
-st.markdown("### Smart Risk Prediction + Live Tracking")
-st.markdown("---")
-
-# ------------------ LOGIN ------------------
 username = st.text_input("Username")
 password = st.text_input("Password", type="password")
 
 if username == "user1" and password == "abc123":
 
-    st.success(f"Welcome {username}")
+    st.success("Login Successful ✅")
 
-    # ------------------ LOCATION ------------------
-    g = geocoder.ip('me')
-    if g.latlng:
-        lat, lon = g.latlng
-    else:
-        lat, lon = 17.385, 78.486  # fallback
-
+    # ---------------- LOCATION ----------------
+    lat, lon = 17.385, 78.486
     st.write(f"📍 Location: {lat}, {lon}")
 
-    # ------------------ TIME ------------------
     hour = datetime.datetime.now().hour
 
-    if hour >= 20 or hour <= 5:
-        st.warning("🌙 Night Risk High")
-    else:
-        st.success("☀️ Day Safer")
-
-    # ------------------ INPUT ------------------
+    # ---------------- INPUT ----------------
     weather_opt = st.selectbox("Weather", ["clear","rainy","fog"])
     crowd_opt = st.selectbox("Crowd", ["low","medium","high"])
-    cctv_opt = st.selectbox("CCTV", ["yes","no"])
-    network_opt = st.selectbox("Network", ["strong","weak"])
-    alone_opt = st.selectbox("Alone", ["yes","no"])
 
-    # Encode
     weather = {"clear":0,"rainy":1,"fog":2}[weather_opt]
     crowd = {"low":0,"medium":1,"high":2}[crowd_opt]
-    cctv = 1 if cctv_opt=="yes" else 0
-    network = 1 if network_opt=="strong" else 0
-    alone = 1 if alone_opt=="yes" else 0
 
-    area_type = 1
-
-    # ------------------ MAP ------------------
-    st.subheader("🗺️ Map")
+    # ---------------- MAP ----------------
+    st.subheader("🗺️ Live Map")
 
     m = folium.Map(location=[lat, lon], zoom_start=15)
     folium.Marker([lat, lon], tooltip="You").add_to(m)
 
-    danger = [[lat+0.002,lon],[lat,lon+0.002]]
+    danger = [[lat+0.002, lon], [lat, lon+0.002]]
 
     for d in danger:
         folium.Circle(location=d, radius=300, color="red", fill=True).add_to(m)
@@ -122,41 +91,58 @@ if username == "user1" and password == "abc123":
 
     st_folium(m)
 
-    # ------------------ PREDICT ------------------
-    if st.button("Predict"):
+    # ---------------- PREDICT ----------------
+    if st.button("🔍 Predict Risk"):
 
-        input_data = np.array([[hour,area_type,5,2,1,weather,crowd,cctv,5,network,alone]])
+        input_data = np.array([[hour,1,5,2,1,weather,crowd,1,5,1,1]])
 
         prob = model.predict_proba(input_data)[0][1]
 
-        st.write(f"Risk: {prob*100:.2f}%")
+        st.subheader("📊 Risk Analysis")
+        st.metric("Risk %", f"{prob*100:.2f}")
 
         if prob > 0.75:
-            result = "high"
-            st.error("🚨 HIGH RISK ALERT!")
+            st.error("🚨 HIGH RISK AREA")
+            risk_level = "High"
         elif prob > 0.4:
-            result = "medium"
-            st.warning("⚠️ Medium Risk")
+            st.warning("⚠️ MEDIUM RISK")
+            risk_level = "Medium"
         else:
-            result = "low"
-            st.success("Safe")
+            st.success("🟢 SAFE AREA")
+            risk_level = "Low"
 
-        # SAVE CSV
-        new = pd.DataFrame([[username,hour,lat,lon,"urban",
-                             weather_opt,crowd_opt,cctv_opt,
-                             network_opt,alone_opt,prob,result]],
-            columns=["user","time","lat","lon","area_type",
-                     "weather","crowd","cctv","network","alone",
-                     "risk","result"])
+    # ---------------- CHATBOT ----------------
+    st.subheader("🤖 AI Safety Chatbot")
 
-        new.to_csv("history.csv",mode='a',header=False,index=False)
+    user_q = st.text_input("Ask Safety Assistant")
 
-    # ------------------ DASHBOARD ------------------
-    st.subheader("📊 Dashboard")
+    if user_q:
 
-    hist = pd.read_csv("history.csv")
-    st.dataframe(hist)
-    st.line_chart(hist["risk"])
+        q = user_q.lower()
+
+        if "help" in q or "emergency" in q:
+            st.error("🚨 Call 100 immediately or contact nearby police station.")
+        elif "safe" in q:
+            st.info("Always avoid isolated places at night and share location with family.")
+        elif "night" in q:
+            st.warning("🌙 Night time is high risk. Stay in well-lit areas.")
+        elif "danger" in q:
+            st.warning("⚠️ Avoid red zones shown in map.")
+        else:
+            st.success("I am your safety assistant. Ask about safety, emergency, or risk.")
+
+    # ---------------- HISTORY ----------------
+    if st.button("Save Record"):
+
+        new = pd.DataFrame([[username,hour,lat,lon,prob]],
+                           columns=["user","time","lat","lon","risk"])
+
+        if os.path.exists("history.csv"):
+            new.to_csv("history.csv", mode='a', header=False, index=False)
+        else:
+            new.to_csv("history.csv", index=False)
+
+        st.success("Saved ✅")
 
 else:
-    st.warning("Login using user1 / abc123")
+    st.warning("Login: user1 / abc123")
